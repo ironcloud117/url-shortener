@@ -16,6 +16,7 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: "true"
+  TF_VAR_alarm_email: ${{ secrets.ALARM_EMAIL }}
 
 jobs:
   terraform:
