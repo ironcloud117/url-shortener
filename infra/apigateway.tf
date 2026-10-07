@@ -3,6 +3,7 @@ locals {
     create   = { path = "shorten", method = "POST", api_key = true }
     redirect = { path = "{code}", method = "GET", api_key = false }
   }
+  cors_origin = "'https://${aws_cloudfront_distribution.web.domain_name}'"
 }
 
 resource "aws_api_gateway_rest_api" "api" {
@@ -47,16 +48,78 @@ resource "aws_lambda_permission" "apigw" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/${each.value.method}/*"
 }
 
+# CORS preflight su /shorten
+resource "aws_api_gateway_method" "cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.route["create"].id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "cors" {
+  rest_api_id       = aws_api_gateway_rest_api.api.id
+  resource_id       = aws_api_gateway_resource.route["create"].id
+  http_method       = aws_api_gateway_method.cors.http_method
+  type              = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "cors" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.route["create"].id
+  http_method = aws_api_gateway_method.cors.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "cors" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.route["create"].id
+  http_method = aws_api_gateway_method.cors.http_method
+  status_code = aws_api_gateway_method_response.cors.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = local.cors_origin
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,x-api-key'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+  }
+
+  depends_on = [aws_api_gateway_integration.cors]
+}
+
+# Errori generati da API Gateway (403, 429, 5xx) leggibili dal browser
+resource "aws_api_gateway_gateway_response" "cors" {
+  for_each      = toset(["DEFAULT_4XX", "DEFAULT_5XX"])
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  response_type = each.key
+
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin" = local.cors_origin
+  }
+
+  response_templates = {
+    "application/json" = "{\"message\":$context.error.messageString}"
+  }
+}
+
 resource "aws_api_gateway_deployment" "api" {
   rest_api_id = aws_api_gateway_rest_api.api.id
 
+  # Hash del file: ridistribuisce a ogni nostra modifica, non ai default aggiunti da AWS
   triggers = {
-    redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.route,
-      aws_api_gateway_method.route,
-      aws_api_gateway_integration.route,
-    ]))
+    redeployment = filesha1("${path.module}/apigateway.tf")
   }
+
+  depends_on = [
+    aws_api_gateway_integration.route,
+    aws_api_gateway_integration_response.cors,
+    aws_api_gateway_gateway_response.cors,
+  ]
 
   lifecycle {
     create_before_destroy = true

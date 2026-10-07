@@ -25,7 +25,8 @@ resource "aws_lambda_function" "fn" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.urls.name
+      TABLE_NAME     = aws_dynamodb_table.urls.name
+      ALLOWED_ORIGIN = "https://${aws_cloudfront_distribution.web.domain_name}"
     }
   }
 

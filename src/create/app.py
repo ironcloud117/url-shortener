@@ -13,12 +13,16 @@ ALPHABET = string.ascii_letters + string.digits
 CODE_LENGTH = 7
 TTL_DAYS = 30
 MAX_ATTEMPTS = 3
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "")
 
 
 def _response(status, body):
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+        },
         "body": json.dumps(body),
     }
 
