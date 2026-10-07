@@ -1,8 +1,9 @@
 data "archive_file" "lambda" {
-  for_each    = local.lambdas
-  type        = "zip"
-  source_file = "${path.module}/../src/${each.key}/app.py"
-  output_path = "${path.module}/build/${each.key}.zip"
+  for_each         = local.lambdas
+  type             = "zip"
+  source_file      = "${path.module}/../src/${each.key}/app.py"
+  output_path      = "${path.module}/build/${each.key}.zip"
+  output_file_mode = "0644"
 }
 
 resource "aws_cloudwatch_log_group" "lambda" {

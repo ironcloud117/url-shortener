@@ -1,3 +1,8 @@
+locals {
+  # Formato "immutable subject" di GitHub: owner@id/repo@id
+  github_sub_prefix = "repo:ironcloud117@161874207/url-shortener@1406024360"
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
@@ -19,8 +24,8 @@ data "aws_iam_policy_document" "github_trust" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:ironcloud117/url-shortener:ref:refs/heads/main",
-        "repo:ironcloud117/url-shortener:pull_request",
+        "${local.github_sub_prefix}:ref:refs/heads/main",
+        "${local.github_sub_prefix}:pull_request",
       ]
     }
   }
